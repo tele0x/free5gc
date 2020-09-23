@@ -40,7 +40,7 @@ import (
 )
 
 func init() {
-	DefaultTestConfigPath := path_util.Gofree5gcPath("free5gc/config/test/uesim.conf")
+	DefaultTestingConfigPath := path_util.Gofree5gcPath("free5gc/config/test/uesim.conf")
 	factory.InitConfigFactory(DefaultTestingConfigPath)
 }
 

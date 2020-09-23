@@ -1,7 +1,7 @@
 package test_test
 
 import (
-	"flag"
+	//"flag"
 	"fmt"
 	"free5gc/lib/MongoDBLibrary"
 	"free5gc/lib/nas/security"
@@ -16,18 +16,19 @@ import (
 	pcf_service "free5gc/src/pcf/service"
 	smf_service "free5gc/src/smf/service"
 	"free5gc/src/test"
+        "free5gc/src/test/factory"
 	udm_service "free5gc/src/udm/service"
 	udr_service "free5gc/src/udr/service"
-	"log"
+	//"log"
 	"net"
 	"os"
 	"sync"
 	"testing"
-	"time"
+	//"time"
 
 	"git.cs.nctu.edu.tw/calee/sctp"
 	"github.com/stretchr/testify/assert"
-	"github.com/urfave/cli"
+	//"github.com/urfave/cli"
 )
 
 var NFs = []app.NetworkFunction{
@@ -52,26 +53,13 @@ func init() {
 	}
 
 	if init {
+                // Load config
+                DefaultTestingConfigPath := path_util.Gofree5gcPath("free5gc/config/test/uesim.conf")
+                factory.InitConfigFactory(DefaultTestingConfigPath)
+
 		app.AppInitializeWillInitialize("")
-		flagSet := flag.NewFlagSet("free5gc", 0)
-		flagSet.String("smfcfg", "", "SMF Config Path")
-		cli := cli.NewContext(nil, flagSet, nil)
-		err := cli.Set("smfcfg", path_util.Gofree5gcPath("free5gc/config/test/smfcfg.test.conf"))
-		if err != nil {
-			log.Fatal("SMF test config error")
-			return
-		}
-
-		for _, service := range NFs {
-			service.Initialize(cli)
-			go service.Start()
-			time.Sleep(200 * time.Millisecond)
-		}
-	} else {
-		MongoDBLibrary.SetMongoDB("free5gc", "mongodb://127.0.0.1:27017")
-		fmt.Println("MongoDB Set")
 	}
-
+	MongoDBLibrary.SetMongoDB(factory.TestingConfig.MongoDBName, factory.TestingConfig.MongoDBUrl)
 }
 
 func getNgapIp(amfIP, ranIP string, amfPort, ranPort int) (amfAddr, ranAddr *sctp.SCTPAddr, err error) {

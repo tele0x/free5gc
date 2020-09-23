@@ -24,6 +24,8 @@ import (
 
 	// ausf_context "free5gc/src/ausf/context"
 	"free5gc/src/test"
+        "free5gc/src/test/factory"
+	"free5gc/lib/path_util"
 	"net"
 	"testing"
 	"time"
@@ -36,6 +38,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
+
+func init() {
+	DefaultTestConfigPath := path_util.Gofree5gcPath("free5gc/config/test/uesim.conf")
+	factory.InitConfigFactory(DefaultTestingConfigPath)
+}
 
 const ranIpAddr string = "10.200.200.1"
 
@@ -101,12 +108,16 @@ func TestRegistration(t *testing.T) {
 	var sendMsg []byte
 	var recvMsg = make([]byte, 2048)
 
+	var ranIpAddr string = factory.TestingConfig.RanIP
+
+	fmt.Println("RAN connect to AMF")
 	// RAN connect to AMF
-	conn, err := conntectToAmf("127.0.0.1", "127.0.0.1", 38412, 9487)
+	conn, err := conntectToAmf(factory.TestingConfig.AmfIP, ranIpAddr, 38412, 9487)
 	assert.Nil(t, err)
 
+	fmt.Println("RAN connect to UPF")
 	// RAN connect to UPF
-	upfConn, err := connectToUpf(ranIpAddr, "10.200.200.102", 2152, 2152)
+	upfConn, err := connectToUpf(ranIpAddr, factory.TestingConfig.UpfIP, 2152, 2152)
 	assert.Nil(t, err)
 
 	// send NGSetupRequest Msg
@@ -129,6 +140,7 @@ func TestRegistration(t *testing.T) {
 	ue.AuthenticationSubs = getAuthSubscription()
 	// insert UE data to MongoDB
 
+	fmt.Println("Insert UE data into MongoDB")
 	servingPlmnId := "20893"
 	test.InsertAuthSubscriptionToMongoDB(ue.Supi, ue.AuthenticationSubs)
 	getData := test.GetAuthSubscriptionFromMongoDB(ue.Supi)
@@ -164,6 +176,7 @@ func TestRegistration(t *testing.T) {
 		assert.NotNil(t, getData)
 	}
 
+	fmt.Println("Send InitialUeMessage Registration Request")
 	// send InitialUeMessage(Registration Request)(imsi-2089300007487)
 	mobileIdentity5GS := nasType.MobileIdentity5GS{
 		Len:    12, // suci
@@ -177,6 +190,7 @@ func TestRegistration(t *testing.T) {
 	_, err = conn.Write(sendMsg)
 	assert.Nil(t, err)
 
+	fmt.Println("Receive NAS Authentication Request")
 	// receive NAS Authentication Request Msg
 	n, err = conn.Read(recvMsg)
 	assert.Nil(t, err)
@@ -191,6 +205,7 @@ func TestRegistration(t *testing.T) {
 	rand := nasPdu.AuthenticationRequest.GetRANDValue()
 	resStat := ue.DeriveRESstarAndSetKey(ue.AuthenticationSubs, rand[:], "5G:mnc093.mcc208.3gppnetwork.org")
 
+	fmt.Println("Send NAS Authentication Response")
 	// send NAS Authentication Response
 	pdu := nasTestpacket.GetAuthenticationResponse(resStat, "")
 	sendMsg, err = test.GetUplinkNASTransport(ue.AmfUeNgapId, ue.RanUeNgapId, pdu)
@@ -217,6 +232,7 @@ func TestRegistration(t *testing.T) {
 	_, err = conn.Write(sendMsg)
 	assert.Nil(t, err)
 
+	fmt.Println("Receive NGAP Initial Context Setup Request")
 	// receive ngap Initial Context Setup Request Msg
 	n, err = conn.Read(recvMsg)
 	assert.Nil(t, err)
@@ -226,12 +242,14 @@ func TestRegistration(t *testing.T) {
 		ngapPdu.InitiatingMessage.ProcedureCode.Value == ngapType.ProcedureCodeInitialContextSetup,
 		"No InitialContextSetup received.")
 
+	fmt.Println("Send NGAP Initial Context Setup Response")
 	// send ngap Initial Context Setup Response Msg
 	sendMsg, err = test.GetInitialContextSetupResponse(ue.AmfUeNgapId, ue.RanUeNgapId)
 	assert.Nil(t, err)
 	_, err = conn.Write(sendMsg)
 	assert.Nil(t, err)
 
+	fmt.Println("Send NAS Registration Complete Msg")
 	// send NAS Registration Complete Msg
 	pdu = nasTestpacket.GetRegistrationComplete(nil)
 	pdu, err = test.EncodeNasPduWithSecurity(ue, pdu, nas.SecurityHeaderTypeIntegrityProtectedAndCiphered, true, false)
@@ -243,6 +261,7 @@ func TestRegistration(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 	// send GetPduSessionEstablishmentRequest Msg
+	fmt.Println("Send GetPDUSessionEstablishment Request")
 
 	sNssai := models.Snssai{
 		Sst: 1,
@@ -256,6 +275,7 @@ func TestRegistration(t *testing.T) {
 	_, err = conn.Write(sendMsg)
 	assert.Nil(t, err)
 
+	fmt.Println("Receive NGAP-PDU Session Resource Setup Request")
 	// receive 12. NGAP-PDU Session Resource Setup Request(DL nas transport((NAS msg-PDU session setup Accept)))
 	n, err = conn.Read(recvMsg)
 	assert.Nil(t, err)
@@ -266,6 +286,7 @@ func TestRegistration(t *testing.T) {
 		"No PDUSessionResourceSetup received.")
 
 	// send 14. NGAP-PDU Session Resource Setup Response
+	fmt.Println("Send NGAP-PDU Session Resource Setup Response")
 	sendMsg, err = test.GetPDUSessionResourceSetupResponse(ue.AmfUeNgapId, ue.RanUeNgapId, ranIpAddr)
 	assert.Nil(t, err)
 	_, err = conn.Write(sendMsg)
@@ -274,6 +295,7 @@ func TestRegistration(t *testing.T) {
 	// wait 1s
 	time.Sleep(1 * time.Second)
 
+	fmt.Println("Create ICMP packet and send it over GTP tunnel")
 	// Send the dummy packet
 	// ping IP(tunnel IP) from 60.60.0.2(127.0.0.1) to 60.60.0.20(127.0.0.8)
 	gtpHdr, err := hex.DecodeString("32ff00340000000100000000")

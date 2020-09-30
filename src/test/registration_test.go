@@ -336,7 +336,11 @@ func TestRegistration(t *testing.T) {
 	_, err = upfConn.Write(append(tt, b...))
 	assert.Nil(t, err)
 
-	time.Sleep(1 * time.Second)
+        n, err = upfConn.Read(recvMsg)
+        fmt.Println("Received ICMP reply packet")
+        fmt.Println(recvMsg[:n])
+        assert.Nil(t, err)
+        time.Sleep(1 * time.Second)
 
 	// delete test data
 	test.DelAuthSubscriptionToMongoDB(ue.Supi)
